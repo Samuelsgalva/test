@@ -86,6 +86,17 @@
             margin-top: 16px;
             display: none;
         }
+        .debug {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 11px;
+            font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
@@ -93,7 +104,7 @@
         <h2>Resumen de Gestión</h2>
         
         <div class="info" id="conversationInfo">
-            Cargando información de la conversación...
+            Esperando contexto de Chatwoot...
         </div>
 
         <form id="summaryForm">
@@ -136,183 +147,124 @@
         <div class="success" id="successMsg">
             ✓ Resumen guardado correctamente
         </div>
+
+        <!-- Debug panel (remove in production) -->
+        <div class="debug" id="debugPanel"></div>
     </div>
 
     <script>
-        class ChatwootContext {
-            constructor(data) {
-                this.raw = data;
-            }
+        let appContext = null;
+        const debugPanel = document.getElementById('debugPanel');
 
-            get conversationId() {
-                return this.raw?.conversation?.id;
-            }
-
-            get conversationUuid() {
-                return this.raw?.conversation?.uuid;
-            }
-
-            get status() {
-                return this.raw?.conversation?.status;
-            }
-
-            get contact() {
-                return {
-                    id: this.raw?.contact?.id,
-                    name: this.raw?.contact?.name || this.raw?.conversation?.meta?.sender?.name,
-                    email: this.raw?.contact?.email || this.raw?.conversation?.meta?.sender?.email,
-                    phone: this.raw?.contact?.phone_number || this.raw?.conversation?.meta?.sender?.phone_number,
-                    thumbnail: this.raw?.contact?.thumbnail || this.raw?.conversation?.meta?.sender?.thumbnail,
-                    customAttributes: this.raw?.contact?.custom_attributes || {}
-                };
-            }
-
-            get agent() {
-                return {
-                    id: this.raw?.currentAgent?.id,
-                    name: this.raw?.currentAgent?.name,
-                    email: this.raw?.currentAgent?.email
-                };
-            }
-
-            get team() {
-                return {
-                    id: this.raw?.conversation?.meta?.team?.id,
-                    name: this.raw?.conversation?.meta?.team?.name,
-                    description: this.raw?.conversation?.meta?.team?.description
-                };
-            }
-
-            get inbox() {
-                return {
-                    id: this.raw?.conversation?.inbox_id,
-                    channel: this.raw?.conversation?.meta?.channel
-                };
-            }
-
-            get messages() {
-                return this.raw?.conversation?.messages || [];
-            }
-
-            get lastMessage() {
-                const msgs = this.messages.filter(m => m.message_type === 0);
-                return msgs[msgs.length - 1];
-            }
-
-            get labels() {
-                return this.raw?.conversation?.labels || [];
-            }
-
-            get customAttributes() {
-                return this.raw?.conversation?.custom_attributes || {};
-            }
-
-            get unreadCount() {
-                return this.raw?.conversation?.unread_count || 0;
-            }
-
-            get createdAt() {
-                return new Date(this.raw?.conversation?.created_at * 1000);
-            }
-
-            get lastActivityAt() {
-                return new Date(this.raw?.conversation?.last_activity_at * 1000);
-            }
-
-            toJSON() {
-                return {
-                    conversationId: this.conversationId,
-                    uuid: this.conversationUuid,
-                    status: this.status,
-                    contact: this.contact,
-                    agent: this.agent,
-                    team: this.team,
-                    inbox: this.inbox,
-                    labels: this.labels,
-                    customAttributes: this.customAttributes,
-                    unreadCount: this.unreadCount,
-                    createdAt: this.createdAt,
-                    lastActivityAt: this.lastActivityAt
-                };
-            }
+        function log(message, data = null) {
+            console.log(message, data);
+            const timestamp = new Date().toLocaleTimeString();
+            debugPanel.innerHTML += `<div>[${timestamp}] ${message}${data ? ': ' + JSON.stringify(data, null, 2) : ''}</div>`;
+            debugPanel.scrollTop = debugPanel.scrollHeight;
         }
 
-        let conversationData = null;
-        let context = null;
+        log('Dashboard app iniciada');
 
+        // Escuchar mensajes de Chatwoot
         window.addEventListener('message', (event) => {
-            console.log('Mensaje recibido:', event);
-            
-            if (event.data && event.data.event === 'appContext') {
-                console.log('Contexto recibido:', event.data.data);
-                conversationData = event.data.data;
-                context = new ChatwootContext(conversationData);
-                console.log('Contexto parseado:', context.toJSON());
-                displayConversationInfo();
+            log('Mensaje recibido', { 
+                event: event.data?.event, 
+                origin: event.origin 
+            });
+
+            // Manejar el evento onLoad de Chatwoot
+            if (event.data && event.data.event === 'onLoad') {
+                log('Evento onLoad detectado', event.data);
+                appContext = event.data;
+                updateConversationInfo();
             }
         });
 
-        function displayConversationInfo() {
+        function updateConversationInfo() {
             const info = document.getElementById('conversationInfo');
-            if (context && context.conversationId) {
-                info.innerHTML = `
-                    <strong>Conversación:</strong> #${context.conversationId}<br>
-                    <strong>Cliente:</strong> ${context.contact.name || 'Sin nombre'}<br>
-                    <strong>Teléfono:</strong> ${context.contact.phone || 'N/A'}<br>
-                    <strong>Estado:</strong> ${context.status || 'N/A'}<br>
-                    <strong>Agente:</strong> ${context.agent.name || 'N/A'}
-                `;
-                info.style.background = '#d1fae5';
-                info.style.borderColor = '#6ee7b7';
-                info.style.color = '#065f46';
-            } else {
-                info.innerHTML = 'App funcionando en modo standalone';
+            
+            if (!appContext) {
+                log('No hay contexto disponible');
+                info.innerHTML = '⚠️ Esperando contexto de Chatwoot...';
                 info.style.background = '#fef3c7';
                 info.style.borderColor = '#fbbf24';
                 info.style.color = '#92400e';
+                return;
             }
+
+            log('Actualizando información de conversación', appContext);
+
+            // Extraer datos del contexto
+            const conversation = appContext.conversation || {};
+            const contact = appContext.contact || {};
+            const sender = conversation.meta?.sender || {};
+            const currentAgent = appContext.currentAgent || {};
+
+            const conversationId = conversation.id || 'N/A';
+            const contactName = contact.name || sender.name || 'Sin nombre';
+            const contactPhone = contact.phone_number || sender.phone_number || 'N/A';
+            const status = conversation.status || 'N/A';
+            const agentName = currentAgent.name || 'No asignado';
+
+            info.innerHTML = `
+                <strong>Conversación:</strong> #${conversationId}<br>
+                <strong>Cliente:</strong> ${contactName}<br>
+                <strong>Teléfono:</strong> ${contactPhone}<br>
+                <strong>Estado:</strong> ${status}<br>
+                <strong>Agente:</strong> ${agentName}
+            `;
+            info.style.background = '#d1fae5';
+            info.style.borderColor = '#6ee7b7';
+            info.style.color = '#065f46';
+
+            log('Información actualizada correctamente');
         }
 
-        setTimeout(() => {
-            if (!context) {
-                displayConversationInfo();
-            }
-        }, 2000);
-
+        // Manejar envío del formulario
         document.getElementById('summaryForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            console.log('Submit - conversationData:', conversationData);
-            console.log('Submit - context:', context);
-            console.log('Submit - context exists?:', context ? 'SI' : 'NO');
             
             const submitBtn = document.getElementById('submitBtn');
             submitBtn.disabled = true;
             submitBtn.textContent = 'Guardando...';
 
+            // Extraer datos del contexto de manera segura
+            const conversation = appContext?.conversation || {};
+            const contact = appContext?.contact || {};
+            const sender = conversation.meta?.sender || {};
+            const currentAgent = appContext?.currentAgent || {};
+            const team = conversation.meta?.team || {};
+
             const summary = {
-                conversation_id: context?.conversationId || conversationData?.conversation?.id || 'N/A',
+                conversation_id: conversation.id || 'N/A',
                 resultado: document.getElementById('resultado').value,
                 categoria: document.getElementById('categoria').value,
                 resumen: document.getElementById('resumen').value,
                 notas: document.getElementById('notas').value,
                 timestamp: new Date().toISOString(),
-                agent: context?.agent.name || conversationData?.currentAgent?.name || 'N/A',
-                agent_email: context?.agent.email || conversationData?.currentAgent?.email || 'N/A',
-                cliente: context?.contact.name || conversationData?.contact?.name || 'N/A',
-                telefono: context?.contact.phone || conversationData?.contact?.phone_number || 'N/A',
-                team: context?.team.name || conversationData?.conversation?.meta?.team?.name || 'N/A',
-                channel: context?.inbox.channel || conversationData?.conversation?.meta?.channel || 'N/A'
+                agent: currentAgent.name || 'N/A',
+                agent_email: currentAgent.email || 'N/A',
+                cliente: contact.name || sender.name || 'N/A',
+                telefono: contact.phone_number || sender.phone_number || 'N/A',
+                email: contact.email || sender.email || 'N/A',
+                team: team.name || 'N/A',
+                channel: conversation.meta?.channel || 'N/A',
+                status: conversation.status || 'N/A'
             };
 
-            console.log('Resumen guardado:', summary);
+            log('Resumen guardado', summary);
 
-            if (context && context.conversationId) {
+            // Aquí puedes enviar el resumen a tu backend
+            // await fetch('/api/save-summary', { method: 'POST', body: JSON.stringify(summary) });
+
+            // Cerrar el sidebar
+            if (appContext && conversation.id) {
                 window.parent.postMessage({
                     event: 'toggleSidebar'
                 }, '*');
             }
 
+            // Mostrar mensaje de éxito
             document.getElementById('successMsg').style.display = 'block';
             
             setTimeout(() => {
@@ -323,8 +275,15 @@
             }, 2000);
         });
 
-        console.log('Dashboard app cargada, solicitando contexto...');
-        window.parent.postMessage({ event: 'getContext' }, '*');
+        // Timeout para modo standalone
+        setTimeout(() => {
+            if (!appContext) {
+                log('Timeout: no se recibió contexto, modo standalone');
+                updateConversationInfo();
+            }
+        }, 3000);
+
+        log('Listeners configurados, esperando evento onLoad...');
     </script>
 </body>
 </html>
