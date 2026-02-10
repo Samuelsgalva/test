@@ -282,23 +282,27 @@
         document.getElementById('summaryForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            console.log('Submit - conversationData:', conversationData);
+            console.log('Submit - context:', context);
+            console.log('Submit - context exists?:', context ? 'SI' : 'NO');
+            
             const submitBtn = document.getElementById('submitBtn');
             submitBtn.disabled = true;
             submitBtn.textContent = 'Guardando...';
 
             const summary = {
-                conversation_id: context?.conversationId || 'N/A',
+                conversation_id: context?.conversationId || conversationData?.conversation?.id || 'N/A',
                 resultado: document.getElementById('resultado').value,
                 categoria: document.getElementById('categoria').value,
                 resumen: document.getElementById('resumen').value,
                 notas: document.getElementById('notas').value,
                 timestamp: new Date().toISOString(),
-                agent: context?.agent.name || 'N/A',
-                agent_email: context?.agent.email || 'N/A',
-                cliente: context?.contact.name || 'N/A',
-                telefono: context?.contact.phone || 'N/A',
-                team: context?.team.name || 'N/A',
-                channel: context?.inbox.channel || 'N/A'
+                agent: context?.agent.name || conversationData?.currentAgent?.name || 'N/A',
+                agent_email: context?.agent.email || conversationData?.currentAgent?.email || 'N/A',
+                cliente: context?.contact.name || conversationData?.contact?.name || 'N/A',
+                telefono: context?.contact.phone || conversationData?.contact?.phone_number || 'N/A',
+                team: context?.team.name || conversationData?.conversation?.meta?.team?.name || 'N/A',
+                channel: context?.inbox.channel || conversationData?.conversation?.meta?.channel || 'N/A'
             };
 
             console.log('Resumen guardado:', summary);
