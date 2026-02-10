@@ -1,24 +1,23 @@
 /**
  * ChatwootContext — Módulo reutilizable para cualquier Dashboard App de Chatwoot.
  *
- * Según la documentación oficial:
- * https://www.chatwoot.com/hc/user-guide/articles/1677691702-how-to-use-dashboard-apps
+ * Documentación: https://www.chatwoot.com/hc/user-guide/articles/1677691702-how-to-use-dashboard-apps
  *
- * - Chatwoot envía la data como JSON string vía postMessage.
- * - Para solicitar contexto: window.parent.postMessage('chatwoot-dashboard-app:fetch-info', '*')
- * - El payload es la conversación directamente: { id, status, inbox_id, meta: { sender, assignee, channel }, messages, ... }
+ * Payload real que envía Chatwoot (verificado):
+ *   JSON.parse(event.data) → {
+ *     event: "appContext",
+ *     data: {
+ *       conversation: { id, inbox_id, status, meta: { sender, assignee, channel, team }, messages, ... },
+ *       contact: { id, name, email, phone_number, ... },
+ *       currentAgent: { id, name, email }
+ *     }
+ *   }
  *
  * Uso:
- *   <script src="chatwoot-context.js"></script>
- *   <script>
- *     const ctx = new ChatwootContext({
- *       debug: true,
- *       allowedInboxIds: [1, 3, 5],
- *     });
- *     ctx.on('contextReady', ({ conversation, contact, agent }) => { ... });
- *     ctx.on('inboxBlocked', ({ inboxId, allowed }) => { ... });
- *     ctx.init();
- *   </script>
+ *   const ctx = new ChatwootContext({ debug: true, allowedInboxIds: [1, 3] });
+ *   ctx.on('contextReady', ({ conversation, contact, agent }) => { ... });
+ *   ctx.on('inboxBlocked', ({ inboxId }) => { ... });
+ *   ctx.init();
  */
 
 // ──────────────────────────────────────────────
@@ -34,12 +33,17 @@ class CWConversation {
 
   get id()       { return this.#raw.id ?? null; }
   get status()   { return this.#raw.status ?? 'unknown'; }
-  get channel()  { return this.#raw.meta?.channel ?? 'N/A'; }
   get inboxId()  { return this.#raw.inbox_id ?? null; }
+  get channel()  { return this.#raw.meta?.channel ?? 'N/A'; }
   get messages() { return this.#raw.messages ?? []; }
+  get accountId(){ return this.#raw.account_id ?? null; }
+  get uuid()     { return this.#raw.uuid ?? null; }
+  get labels()   { return this.#raw.labels ?? []; }
+  get priority() { return this.#raw.priority ?? null; }
 
   get senderRaw()   { return this.#raw.meta?.sender ?? {}; }
   get assigneeRaw() { return this.#raw.meta?.assignee ?? {}; }
+  get teamRaw()     { return this.#raw.meta?.team ?? {}; }
 
   get raw() { return structuredClone(this.#raw); }
 }
@@ -57,6 +61,7 @@ class CWContact {
   get phoneNumber() { return this.#raw.phone_number ?? 'N/A'; }
   get thumbnail()   { return this.#raw.thumbnail ?? null; }
   get identifier()  { return this.#raw.identifier ?? null; }
+  get blocked()     { return this.#raw.blocked ?? false; }
   get companyName() { return this.#raw.additional_attributes?.company_name ?? 'N/A'; }
   get customAttributes() { return this.#raw.custom_attributes ?? {}; }
 
@@ -79,8 +84,21 @@ class CWAgent {
   get raw() { return structuredClone(this.#raw); }
 }
 
+class CWTeam {
+  #raw;
+
+  constructor(data = {}) {
+    this.#raw = data ?? {};
+  }
+
+  get id()   { return this.#raw.id ?? null; }
+  get name() { return this.#raw.name ?? 'N/A'; }
+
+  get raw() { return structuredClone(this.#raw); }
+}
+
 // ──────────────────────────────────────────────
-// Logger interno
+// Logger
 // ──────────────────────────────────────────────
 
 class CWDebugLogger {
@@ -98,7 +116,8 @@ class CWDebugLogger {
     console.log(`[CW ${ts}] ${message}`, data ?? '');
     if (this.#panel) {
       const safe = data ? this.#escape(JSON.stringify(data, null, 2)) : '';
-      this.#panel.innerHTML += `<div>[${ts}] ${message}${safe ? '<br><pre>' + safe + '</pre>' : ''}</div>`;
+      this.#panel.innerHTML +=
+        `<div>[${ts}] ${message}${safe ? '<br><pre>' + safe + '</pre>' : ''}</div>`;
       this.#panel.scrollTop = this.#panel.scrollHeight;
     }
   }
@@ -111,7 +130,7 @@ class CWDebugLogger {
 }
 
 // ──────────────────────────────────────────────
-// Control de acceso por inbox
+// InboxGuard
 // ──────────────────────────────────────────────
 
 class CWInboxGuard {
@@ -119,7 +138,7 @@ class CWInboxGuard {
   #logger;
 
   /**
-   * @param {number[]|null} allowedIds - IDs permitidos, null = sin restricción
+   * @param {number[]|null} allowedIds — null = sin restricción
    * @param {CWDebugLogger} logger
    */
   constructor(allowedIds, logger) {
@@ -127,45 +146,31 @@ class CWInboxGuard {
     this.#logger = logger;
   }
 
-  /** true si no hay restricción configurada */
-  get isOpen() {
-    return this.#allowedIds === null;
-  }
-
-  /** Lista de inbox IDs permitidos (copia) */
-  get allowedIds() {
-    return this.#allowedIds ? [...this.#allowedIds] : null;
-  }
+  get isOpen()      { return this.#allowedIds === null; }
+  get allowedIds()  { return this.#allowedIds ? [...this.#allowedIds] : null; }
 
   /**
-   * Evalúa si un inboxId tiene acceso.
    * @param  {number|null} inboxId
-   * @returns {{ allowed: boolean, inboxId: number|null, reason: string }}
+   * @returns {{ allowed: boolean, inboxId: number|null }}
    */
   check(inboxId) {
-    // Sin restricción configurada → siempre permitido
     if (this.#allowedIds === null) {
-      this.#logger.log('InboxGuard: sin restricciones, acceso libre');
-      return { allowed: true, inboxId, reason: 'no_restriction' };
+      this.#logger.log('InboxGuard: sin restricciones configuradas → acceso libre');
+      return { allowed: true, inboxId };
     }
 
-    // Sin inbox en el contexto → permitir (no podemos validar)
     if (inboxId === null || inboxId === undefined) {
-      this.#logger.log('InboxGuard: inbox_id no presente en el contexto, permitiendo');
-      return { allowed: true, inboxId, reason: 'no_inbox_id' };
+      this.#logger.log('InboxGuard: inbox_id no presente → permitido por defecto');
+      return { allowed: true, inboxId };
     }
 
     const allowed = this.#allowedIds.includes(inboxId);
+
     this.#logger.log(
-      `InboxGuard: inbox_id=${inboxId} ${allowed ? '✓ permitido' : '✗ bloqueado'}`,
-      { inboxId, allowedIds: this.#allowedIds }
+      `InboxGuard: inbox_id=${inboxId} → ${allowed ? '✓ PERMITIDO' : '✗ BLOQUEADO'}  (permitidos: [${this.#allowedIds.join(', ')}])`,
     );
 
-    return {
-      allowed,
-      inboxId,
-      reason: allowed ? 'inbox_allowed' : 'inbox_blocked',
-    };
+    return { allowed, inboxId };
   }
 }
 
@@ -177,46 +182,43 @@ class ChatwootContext {
   #conversation = null;
   #contact      = null;
   #agent        = null;
+  #team         = null;
   #inboxGuard;
   #listeners    = {};
   #logger;
   #initialized  = false;
-  #blocked       = false;
+  #blocked      = false;
   #timeoutMs;
 
   /**
    * @param {Object}        opts
-   * @param {boolean}       opts.debug           - Activa logs en consola y panel visual
-   * @param {string}        opts.debugPanelId    - ID del elemento HTML para mostrar logs
-   * @param {number}        opts.timeoutMs       - ms antes de emitir 'contextTimeout' (default 5000)
-   * @param {number[]|null} opts.allowedInboxIds - IDs de inbox permitidos. null = todos (default null)
+   * @param {boolean}       opts.debug            — Activa logs
+   * @param {string}        opts.debugPanelId     — ID del elemento HTML para logs visuales
+   * @param {number}        opts.timeoutMs        — Timeout en ms (default 5000)
+   * @param {number[]|null} opts.allowedInboxIds  — IDs permitidos, null = todos
    */
   constructor({ debug = false, debugPanelId = null, timeoutMs = 5000, allowedInboxIds = null } = {}) {
     const panel = debugPanelId ? document.getElementById(debugPanelId) : null;
     this.#logger = new CWDebugLogger(debug, panel);
     this.#timeoutMs = timeoutMs;
     this.#inboxGuard = new CWInboxGuard(allowedInboxIds, this.#logger);
+
+    this.#logger.log('Constructor', {
+      debug,
+      timeoutMs,
+      allowedInboxIds,
+    });
   }
 
   // ── Accesores ──────────────────────────────
 
-  /** @returns {CWConversation|null} */
   get conversation() { return this.#conversation; }
-
-  /** @returns {CWContact|null} */
-  get contact() { return this.#contact; }
-
-  /** @returns {CWAgent|null} */
-  get agent() { return this.#agent; }
-
-  /** @returns {CWInboxGuard} */
-  get inboxGuard() { return this.#inboxGuard; }
-
-  /** true si ya se recibió contexto al menos una vez */
-  get hasContext() { return this.#conversation !== null; }
-
-  /** true si el inbox actual fue bloqueado por el guard */
-  get isBlocked() { return this.#blocked; }
+  get contact()      { return this.#contact; }
+  get agent()        { return this.#agent; }
+  get team()         { return this.#team; }
+  get inboxGuard()   { return this.#inboxGuard; }
+  get hasContext()    { return this.#conversation !== null; }
+  get isBlocked()    { return this.#blocked; }
 
   // ── Eventos ────────────────────────────────
   // 'contextReady' | 'contextUpdated' | 'contextTimeout' | 'inboxBlocked' | 'rawMessage'
@@ -233,7 +235,7 @@ class ChatwootContext {
   }
 
   #emit(event, payload) {
-    this.#logger.log(`Evento: ${event}`);
+    this.#logger.log(`Evento emitido: ${event}`);
     (this.#listeners[event] ?? []).forEach(cb => {
       try { cb(payload); } catch (e) { console.error(`[CW] Error en listener "${event}":`, e); }
     });
@@ -245,15 +247,14 @@ class ChatwootContext {
     if (this.#initialized) return this;
     this.#initialized = true;
 
-    this.#logger.log('Inicializando ChatwootContext…');
+    this.#logger.log('Inicializando…');
 
     window.addEventListener('message', (e) => this.#handleMessage(e));
-
     this.fetchContext();
 
     setTimeout(() => {
-      if (!this.hasContext) {
-        this.#logger.log(`⏱ Timeout (${this.#timeoutMs}ms): no se recibió contexto`);
+      if (!this.hasContext && !this.#blocked) {
+        this.#logger.log(`⏱ Timeout (${this.#timeoutMs}ms)`);
         this.#emit('contextTimeout', null);
       }
     }, this.#timeoutMs);
@@ -261,7 +262,6 @@ class ChatwootContext {
     return this;
   }
 
-  /** Solicita contexto actualizado a Chatwoot bajo demanda */
   fetchContext() {
     this.#logger.log('→ chatwoot-dashboard-app:fetch-info');
     window.parent.postMessage('chatwoot-dashboard-app:fetch-info', '*');
@@ -275,78 +275,96 @@ class ChatwootContext {
     let parsed = null;
 
     if (typeof event.data === 'string') {
-      try {
-        parsed = JSON.parse(event.data);
-      } catch {
-        return;
-      }
+      try { parsed = JSON.parse(event.data); } catch { return; }
     } else if (typeof event.data === 'object' && event.data !== null) {
       parsed = event.data;
     } else {
       return;
     }
 
-    this.#logger.log('Mensaje recibido', parsed);
+    this.#logger.log('Mensaje parseado', { event: parsed.event, hasData: !!parsed.data });
 
-    if (!this.#looksLikeChatwootPayload(parsed)) {
-      this.#logger.log('No parece un payload de Chatwoot, ignorado');
-      return;
+    // ── Extraer los 3 objetos: conversation, contact, currentAgent ──
+
+    let conversation, contact, currentAgent;
+
+    // Formato real verificado: { event: "appContext", data: { conversation, contact, currentAgent } }
+    if (parsed.event === 'appContext' && parsed.data) {
+      this.#logger.log('Formato detectado: appContext wrapper');
+      conversation = parsed.data.conversation;
+      contact      = parsed.data.contact;
+      currentAgent = parsed.data.currentAgent;
     }
-
-    this.#applyContext(parsed);
-  }
-
-  #looksLikeChatwootPayload(data) {
-    if (data.id && data.meta?.sender) return true;
-    if (data.conversation || data.contact || data.currentAgent) return true;
-    if (data.event === 'appContext' && data.data) return true;
-    return false;
-  }
-
-  #applyContext(data) {
-    const isFirst = !this.hasContext;
-
-    // Formato principal: la data ES la conversación
-    if (data.id && data.meta?.sender) {
-      this.#conversation = new CWConversation(data);
-      this.#contact      = new CWContact(data.meta.sender);
-      this.#agent        = new CWAgent(data.meta.assignee ?? {});
+    // Formato alternativo: { conversation, contact, currentAgent } directo
+    else if (parsed.conversation) {
+      this.#logger.log('Formato detectado: datos directos con conversation');
+      conversation = parsed.conversation;
+      contact      = parsed.contact;
+      currentAgent = parsed.currentAgent;
     }
-    // Fallback: envuelto en appContext
-    else if (data.event === 'appContext' && data.data) {
-      return this.#applyContext(data.data);
-    }
-    // Fallback: datos con claves separadas
-    else if (data.conversation) {
-      this.#conversation = new CWConversation(data.conversation);
-      this.#contact      = new CWContact(data.contact ?? data.conversation.meta?.sender ?? {});
-      this.#agent        = new CWAgent(data.currentAgent ?? data.conversation.meta?.assignee ?? {});
+    // Formato alternativo: el payload ES la conversación { id, meta, inbox_id, ... }
+    else if (parsed.id && parsed.meta?.sender) {
+      this.#logger.log('Formato detectado: conversación plana');
+      conversation = parsed;
+      contact      = parsed.meta.sender;
+      currentAgent = parsed.meta.assignee;
     }
     else {
-      this.#logger.log('Formato de contexto no reconocido');
+      this.#logger.log('Mensaje ignorado: no es un payload de Chatwoot reconocido');
       return;
     }
 
-    // ── Verificar acceso por inbox ───────────
-    const guardResult = this.#inboxGuard.check(this.#conversation.inboxId);
+    if (!conversation) {
+      this.#logger.log('Sin datos de conversación en el payload');
+      return;
+    }
+
+    // ── Crear modelos ────────────────────────
+
+    const convModel  = new CWConversation(conversation);
+    const ctcModel   = new CWContact(contact ?? conversation.meta?.sender ?? {});
+    const agentModel = new CWAgent(currentAgent ?? conversation.meta?.assignee ?? {});
+    const teamModel  = new CWTeam(conversation.meta?.team ?? {});
+
+    this.#logger.log('Modelos creados', {
+      conversationId: convModel.id,
+      inboxId:        convModel.inboxId,
+      contact:        ctcModel.name,
+      agent:          agentModel.name,
+      team:           teamModel.name,
+    });
+
+    // ── Verificar acceso por inbox ANTES de aplicar ──
+
+    const guardResult = this.#inboxGuard.check(convModel.inboxId);
 
     if (!guardResult.allowed) {
       this.#blocked = true;
+      this.#logger.log(`🚫 INBOX BLOQUEADO: inbox_id=${guardResult.inboxId}`);
       this.#emit('inboxBlocked', {
         inboxId:    guardResult.inboxId,
         allowedIds: this.#inboxGuard.allowedIds,
-        reason:     guardResult.reason,
+        conversation: convModel,
+        contact:      ctcModel,
+        agent:        agentModel,
       });
-      // No emitir contextReady/contextUpdated si está bloqueado
       return;
     }
 
-    this.#blocked = false;
+    // ── Aplicar contexto ─────────────────────
+
+    const isFirst = !this.hasContext;
+    this.#blocked      = false;
+    this.#conversation = convModel;
+    this.#contact      = ctcModel;
+    this.#agent        = agentModel;
+    this.#team         = teamModel;
 
     const models = {
       conversation: this.#conversation,
       contact:      this.#contact,
       agent:        this.#agent,
+      team:         this.#team,
     };
 
     this.#logger.log('✓ Contexto aplicado', {
@@ -354,6 +372,7 @@ class ChatwootContext {
       inboxId:        this.#conversation.inboxId,
       contact:        this.#contact.name,
       agent:          this.#agent.name,
+      team:           this.#team.name,
     });
 
     if (isFirst) this.#emit('contextReady', models);

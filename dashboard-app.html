@@ -72,21 +72,14 @@
       margin-top: 16px;
       display: none;
     }
-    /* ── Estado bloqueado ──────────────────── */
     .blocked-overlay {
       display: none;
       text-align: center;
       padding: 40px 20px;
       color: #6b7280;
     }
-    .blocked-overlay .icon {
-      font-size: 48px;
-      margin-bottom: 16px;
-    }
-    .blocked-overlay p {
-      font-size: 15px;
-      line-height: 1.5;
-    }
+    .blocked-overlay .icon { font-size: 48px; margin-bottom: 16px; }
+    .blocked-overlay p { font-size: 15px; line-height: 1.5; }
     .blocked-overlay .inbox-id {
       display: inline-block;
       margin-top: 8px;
@@ -99,7 +92,6 @@
     }
     body.is-blocked .app-content { display: none; }
     body.is-blocked .blocked-overlay { display: block; }
-    /* ─────────────────────────────────────── */
     .debug {
       background: #f3f4f6;
       border: 1px solid #d1d5db;
@@ -115,14 +107,14 @@
 </head>
 <body>
   <div class="container">
-    <!-- Mensaje de inbox bloqueado -->
+    <!-- Blocked state -->
     <div class="blocked-overlay" id="blockedOverlay">
       <div class="icon">🔒</div>
       <p>Esta aplicación no está disponible para esta bandeja de entrada.</p>
       <span class="inbox-id" id="blockedInboxId"></span>
     </div>
 
-    <!-- Contenido normal de la app -->
+    <!-- App content -->
     <div class="app-content">
       <h2>Resumen de Gestión</h2>
 
@@ -170,17 +162,15 @@
       <div class="toast" id="successMsg">✓ Resumen guardado correctamente</div>
     </div>
 
-    <!-- Panel de debug — eliminar en producción -->
+    <!-- Debug — eliminar en producción -->
     <div class="debug" id="debugPanel"></div>
   </div>
 
-  <!-- ① Módulo reutilizable -->
   <script src="chatwoot-context.js"></script>
 
-  <!-- ② Lógica de esta dashboard app -->
   <script>
     // ── Configuración ────────────────────────
-    const ALLOWED_INBOX_IDS = [2]; // ← Cambiar según necesidad, o null para permitir todos
+    const ALLOWED_INBOX_IDS = [2]; // ← Solo inbox 2
 
     const ctx = new ChatwootContext({
       debug: true,
@@ -197,7 +187,7 @@
     const $blockedInboxId = document.getElementById('blockedInboxId');
 
     // ── Renderizar info ──────────────────────
-    function renderInfo({ conversation, contact, agent }) {
+    function renderInfo({ conversation, contact, agent, team }) {
       $info.className = 'info-panel success';
       $info.innerHTML = `
         <strong>Conversación:</strong> #${conversation.id ?? 'N/A'}<br>
@@ -206,31 +196,33 @@
         <strong>Email:</strong> ${contact.email}<br>
         <strong>Estado:</strong> ${conversation.status}<br>
         <strong>Canal:</strong> ${conversation.channel}<br>
-        <strong>Inbox:</strong> ${conversation.inboxId ?? 'N/A'}<br>
+        <strong>Inbox:</strong> #${conversation.inboxId ?? 'N/A'}<br>
+        <strong>Equipo:</strong> ${team.name}<br>
         <strong>Agente:</strong> ${agent.name}
       `;
     }
 
-    // ── Eventos del contexto ─────────────────
+    // ── Eventos ──────────────────────────────
     ctx
       .on('contextReady', (models) => {
+        document.body.classList.remove('is-blocked');
         renderInfo(models);
       })
       .on('contextUpdated', (models) => {
-        // Si antes estaba bloqueado y ahora cambió a un inbox permitido, restaurar
         document.body.classList.remove('is-blocked');
         renderInfo(models);
       })
       .on('inboxBlocked', ({ inboxId, allowedIds }) => {
         document.body.classList.add('is-blocked');
-        $blockedInboxId.textContent = `Inbox #${inboxId} — Permitidos: ${allowedIds.join(', ')}`;
+        $blockedInboxId.textContent =
+          `Inbox actual: #${inboxId} — Permitidos: ${allowedIds.map(id => '#' + id).join(', ')}`;
       })
       .on('contextTimeout', () => {
         $info.className = 'info-panel warning';
-        $info.innerHTML = '⚠️ No se recibió contexto. Verifica que esta app esté configurada como Dashboard App en Chatwoot.';
+        $info.innerHTML = '⚠️ No se recibió contexto. Verifica la configuración de Dashboard App.';
       });
 
-    // ── Envío del formulario ─────────────────
+    // ── Submit ───────────────────────────────
     $form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -240,6 +232,7 @@
       const conv  = ctx.conversation;
       const ctc   = ctx.contact;
       const agent = ctx.agent;
+      const team  = ctx.team;
 
       const summary = {
         conversation_id: conv?.id ?? 'N/A',
@@ -254,23 +247,18 @@
         cliente:         ctc?.name ?? 'N/A',
         telefono:        ctc?.phoneNumber ?? 'N/A',
         email_cliente:   ctc?.email ?? 'N/A',
+        team:            team?.name ?? 'N/A',
         channel:         conv?.channel ?? 'N/A',
         status:          conv?.status ?? 'N/A',
       };
 
       console.log('Resumen generado:', summary);
 
-      // ─── Enviar a tu backend ───────────────
-      // try {
-      //   await fetch('https://tu-api.com/api/save-summary', {
-      //     method: 'POST',
-      //     headers: { 'Content-Type': 'application/json' },
-      //     body: JSON.stringify(summary),
-      //   });
-      // } catch (err) {
-      //   console.error('Error al enviar:', err);
-      // }
-      // ─────────────���─────────────────────────
+      // await fetch('https://tu-api.com/api/save-summary', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify(summary),
+      // });
 
       $successMsg.style.display = 'block';
 
