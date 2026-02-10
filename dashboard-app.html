@@ -142,6 +142,8 @@
         let conversationData = null;
 
         window.addEventListener('message', (event) => {
+            console.log('Mensaje recibido:', event.data);
+            
             if (event.data.event === 'appContext') {
                 conversationData = event.data.data;
                 displayConversationInfo();
@@ -157,8 +159,19 @@
                     <strong>Cliente:</strong> ${conv.meta?.sender?.name || 'Sin nombre'}<br>
                     <strong>Estado:</strong> ${conv.status || 'N/A'}
                 `;
+            } else {
+                info.innerHTML = 'App funcionando en modo standalone';
+                info.style.background = '#fef3c7';
+                info.style.borderColor = '#fbbf24';
+                info.style.color = '#92400e';
             }
         }
+
+        setTimeout(() => {
+            if (!conversationData) {
+                displayConversationInfo();
+            }
+        }, 2000);
 
         document.getElementById('summaryForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -168,13 +181,13 @@
             submitBtn.textContent = 'Guardando...';
 
             const summary = {
-                conversation_id: conversationData?.conversation?.id,
+                conversation_id: conversationData?.conversation?.id || 'N/A',
                 resultado: document.getElementById('resultado').value,
                 categoria: document.getElementById('categoria').value,
                 resumen: document.getElementById('resumen').value,
                 notas: document.getElementById('notas').value,
                 timestamp: new Date().toISOString(),
-                agent: conversationData?.currentUser?.name
+                agent: conversationData?.currentUser?.name || 'N/A'
             };
 
             console.log('Resumen guardado:', summary);
@@ -195,6 +208,7 @@
             }, 2000);
         });
 
+        console.log('Dashboard app cargada, solicitando contexto...');
         window.parent.postMessage({ event: 'getContext' }, '*');
     </script>
 </body>
