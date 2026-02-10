@@ -1,289 +1,240 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resumen de Gestión</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            padding: 20px;
-            background: #f5f7fa;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: white;
-            padding: 24px;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        h2 {
-            color: #1f2937;
-            margin-bottom: 20px;
-            font-size: 20px;
-        }
-        .form-group {
-            margin-bottom: 16px;
-        }
-        label {
-            display: block;
-            margin-bottom: 6px;
-            color: #374151;
-            font-size: 14px;
-            font-weight: 500;
-        }
-        input, select, textarea {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            font-size: 14px;
-            font-family: inherit;
-        }
-        textarea {
-            resize: vertical;
-            min-height: 100px;
-        }
-        button {
-            background: #1f7aec;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            width: 100%;
-        }
-        button:hover {
-            background: #1d6fd8;
-        }
-        button:disabled {
-            background: #9ca3af;
-            cursor: not-allowed;
-        }
-        .info {
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            font-size: 13px;
-            color: #1e40af;
-        }
-        .success {
-            background: #d1fae5;
-            border: 1px solid #6ee7b7;
-            color: #065f46;
-            padding: 12px;
-            border-radius: 6px;
-            margin-top: 16px;
-            display: none;
-        }
-        .debug {
-            background: #f3f4f6;
-            border: 1px solid #d1d5db;
-            padding: 8px;
-            border-radius: 4px;
-            margin-top: 10px;
-            font-size: 11px;
-            font-family: monospace;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resumen de Gestión</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      padding: 20px;
+      background: #f5f7fa;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    h2 { color: #1f2937; margin-bottom: 20px; font-size: 20px; }
+    .form-group { margin-bottom: 16px; }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #374151;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    textarea { resize: vertical; min-height: 100px; }
+    button {
+      background: #1f7aec;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      width: 100%;
+    }
+    button:hover { background: #1d6fd8; }
+    button:disabled { background: #9ca3af; cursor: not-allowed; }
+    .info-panel {
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      line-height: 1.6;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+      transition: all 0.3s ease;
+    }
+    .info-panel.success { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+    .info-panel.warning { background: #fef3c7; border-color: #fbbf24; color: #92400e; }
+    .toast {
+      background: #d1fae5;
+      border: 1px solid #6ee7b7;
+      color: #065f46;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 16px;
+      display: none;
+    }
+    .debug {
+      background: #f3f4f6;
+      border: 1px solid #d1d5db;
+      padding: 8px;
+      border-radius: 4px;
+      margin-top: 10px;
+      font-size: 11px;
+      font-family: monospace;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Resumen de Gestión</h2>
-        
-        <div class="info" id="conversationInfo">
-            Esperando contexto de Chatwoot...
-        </div>
+  <div class="container">
+    <h2>Resumen de Gestión</h2>
 
-        <form id="summaryForm">
-            <div class="form-group">
-                <label for="resultado">Resultado</label>
-                <select id="resultado" required>
-                    <option value="">Seleccionar...</option>
-                    <option value="resuelto">Resuelto</option>
-                    <option value="pendiente">Pendiente</option>
-                    <option value="escalado">Escalado</option>
-                    <option value="sin_respuesta">Sin respuesta</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="categoria">Categoría</label>
-                <select id="categoria" required>
-                    <option value="">Seleccionar...</option>
-                    <option value="soporte_tecnico">Soporte técnico</option>
-                    <option value="ventas">Ventas</option>
-                    <option value="consulta">Consulta</option>
-                    <option value="reclamo">Reclamo</option>
-                    <option value="otro">Otro</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="resumen">Resumen</label>
-                <textarea id="resumen" placeholder="Describe brevemente la gestión realizada..." required></textarea>
-            </div>
-
-            <div class="form-group">
-                <label for="notas">Notas adicionales</label>
-                <textarea id="notas" placeholder="Información adicional (opcional)"></textarea>
-            </div>
-
-            <button type="submit" id="submitBtn">Guardar resumen</button>
-        </form>
-
-        <div class="success" id="successMsg">
-            ✓ Resumen guardado correctamente
-        </div>
-
-        <!-- Debug panel (remove in production) -->
-        <div class="debug" id="debugPanel"></div>
+    <div class="info-panel" id="conversationInfo">
+      ⏳ Esperando contexto de Chatwoot…
     </div>
 
-    <script>
-        let appContext = null;
-        const debugPanel = document.getElementById('debugPanel');
+    <form id="summaryForm">
+      <div class="form-group">
+        <label for="resultado">Resultado</label>
+        <select id="resultado" required>
+          <option value="">Seleccionar…</option>
+          <option value="resuelto">Resuelto</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="escalado">Escalado</option>
+          <option value="sin_respuesta">Sin respuesta</option>
+        </select>
+      </div>
 
-        function log(message, data = null) {
-            console.log(message, data);
-            const timestamp = new Date().toLocaleTimeString();
-            debugPanel.innerHTML += `<div>[${timestamp}] ${message}${data ? ': ' + JSON.stringify(data, null, 2) : ''}</div>`;
-            debugPanel.scrollTop = debugPanel.scrollHeight;
-        }
+      <div class="form-group">
+        <label for="categoria">Categoría</label>
+        <select id="categoria" required>
+          <option value="">Seleccionar…</option>
+          <option value="soporte_tecnico">Soporte técnico</option>
+          <option value="ventas">Ventas</option>
+          <option value="consulta">Consulta</option>
+          <option value="reclamo">Reclamo</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
 
-        log('Dashboard app iniciada');
+      <div class="form-group">
+        <label for="resumen">Resumen</label>
+        <textarea id="resumen" placeholder="Describe brevemente la gestión realizada…" required></textarea>
+      </div>
 
-        // Escuchar mensajes de Chatwoot
-        window.addEventListener('message', (event) => {
-            log('Mensaje recibido', { 
-                event: event.data?.event, 
-                origin: event.origin 
-            });
+      <div class="form-group">
+        <label for="notas">Notas adicionales</label>
+        <textarea id="notas" placeholder="Información adicional (opcional)"></textarea>
+      </div>
 
-            // Manejar el evento onLoad de Chatwoot
-            if (event.data && event.data.event === 'onLoad') {
-                log('Evento onLoad detectado', event.data);
-                appContext = event.data;
-                updateConversationInfo();
-            }
-        });
+      <button type="submit" id="submitBtn">Guardar resumen</button>
+    </form>
 
-        function updateConversationInfo() {
-            const info = document.getElementById('conversationInfo');
-            
-            if (!appContext) {
-                log('No hay contexto disponible');
-                info.innerHTML = '⚠️ Esperando contexto de Chatwoot...';
-                info.style.background = '#fef3c7';
-                info.style.borderColor = '#fbbf24';
-                info.style.color = '#92400e';
-                return;
-            }
+    <div class="toast" id="successMsg">✓ Resumen guardado correctamente</div>
 
-            log('Actualizando información de conversación', appContext);
+    <!-- Panel de debug — eliminar en producción -->
+    <div class="debug" id="debugPanel"></div>
+  </div>
 
-            // Extraer datos del contexto
-            const conversation = appContext.conversation || {};
-            const contact = appContext.contact || {};
-            const sender = conversation.meta?.sender || {};
-            const currentAgent = appContext.currentAgent || {};
+  <!-- ① Cargar el módulo reutilizable de contexto -->
+  <script src="chatwoot-context.js"></script>
 
-            const conversationId = conversation.id || 'N/A';
-            const contactName = contact.name || sender.name || 'Sin nombre';
-            const contactPhone = contact.phone_number || sender.phone_number || 'N/A';
-            const status = conversation.status || 'N/A';
-            const agentName = currentAgent.name || 'No asignado';
+  <!-- ② Lógica específica de ESTA dashboard app -->
+  <script>
+    // ── Inicializar contexto de Chatwoot ─────
+    const ctx = new ChatwootContext({
+      debug: true,               // poner false en producción
+      debugPanelId: 'debugPanel',
+      timeoutMs: 5000,
+    });
 
-            info.innerHTML = `
-                <strong>Conversación:</strong> #${conversationId}<br>
-                <strong>Cliente:</strong> ${contactName}<br>
-                <strong>Teléfono:</strong> ${contactPhone}<br>
-                <strong>Estado:</strong> ${status}<br>
-                <strong>Agente:</strong> ${agentName}
-            `;
-            info.style.background = '#d1fae5';
-            info.style.borderColor = '#6ee7b7';
-            info.style.color = '#065f46';
+    // ── Elementos DOM ────────────────────────
+    const $info       = document.getElementById('conversationInfo');
+    const $form       = document.getElementById('summaryForm');
+    const $submitBtn  = document.getElementById('submitBtn');
+    const $successMsg = document.getElementById('successMsg');
 
-            log('Información actualizada correctamente');
-        }
+    // ── Renderizar info de la conversación ───
+    function renderInfo({ conversation, contact, agent }) {
+      $info.className = 'info-panel success';
+      $info.innerHTML = `
+        <strong>Conversación:</strong> #${conversation.id ?? 'N/A'}<br>
+        <strong>Cliente:</strong> ${contact.name}<br>
+        <strong>Teléfono:</strong> ${contact.phoneNumber}<br>
+        <strong>Email:</strong> ${contact.email}<br>
+        <strong>Estado:</strong> ${conversation.status}<br>
+        <strong>Canal:</strong> ${conversation.channel}<br>
+        <strong>Agente:</strong> ${agent.name}
+      `;
+    }
 
-        // Manejar envío del formulario
-        document.getElementById('summaryForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Guardando...';
+    // ── Eventos del contexto ─────────────────
+    ctx
+      .on('contextReady', (models) => {
+        renderInfo(models);
+      })
+      .on('contextUpdated', (models) => {
+        renderInfo(models);
+      })
+      .on('contextTimeout', () => {
+        $info.className = 'info-panel warning';
+        $info.innerHTML = '⚠️ No se recibió contexto. Verifica que esta app esté configurada como Dashboard App en Chatwoot.';
+      });
 
-            // Extraer datos del contexto de manera segura
-            const conversation = appContext?.conversation || {};
-            const contact = appContext?.contact || {};
-            const sender = conversation.meta?.sender || {};
-            const currentAgent = appContext?.currentAgent || {};
-            const team = conversation.meta?.team || {};
+    // ── Envío del formulario ─────────────────
+    $form.addEventListener('submit', async (e) => {
+      e.preventDefault();
 
-            const summary = {
-                conversation_id: conversation.id || 'N/A',
-                resultado: document.getElementById('resultado').value,
-                categoria: document.getElementById('categoria').value,
-                resumen: document.getElementById('resumen').value,
-                notas: document.getElementById('notas').value,
-                timestamp: new Date().toISOString(),
-                agent: currentAgent.name || 'N/A',
-                agent_email: currentAgent.email || 'N/A',
-                cliente: contact.name || sender.name || 'N/A',
-                telefono: contact.phone_number || sender.phone_number || 'N/A',
-                email: contact.email || sender.email || 'N/A',
-                team: team.name || 'N/A',
-                channel: conversation.meta?.channel || 'N/A',
-                status: conversation.status || 'N/A'
-            };
+      $submitBtn.disabled = true;
+      $submitBtn.textContent = 'Guardando…';
 
-            log('Resumen guardado', summary);
+      const conv  = ctx.conversation;
+      const ctc   = ctx.contact;
+      const agent = ctx.agent;
 
-            // Aquí puedes enviar el resumen a tu backend
-            // await fetch('/api/save-summary', { method: 'POST', body: JSON.stringify(summary) });
+      const summary = {
+        conversation_id: conv?.id ?? 'N/A',
+        resultado:       document.getElementById('resultado').value,
+        categoria:       document.getElementById('categoria').value,
+        resumen:         document.getElementById('resumen').value,
+        notas:           document.getElementById('notas').value,
+        timestamp:       new Date().toISOString(),
+        agent:           agent?.name ?? 'N/A',
+        agent_email:     agent?.email ?? 'N/A',
+        cliente:         ctc?.name ?? 'N/A',
+        telefono:        ctc?.phoneNumber ?? 'N/A',
+        email_cliente:   ctc?.email ?? 'N/A',
+        channel:         conv?.channel ?? 'N/A',
+        status:          conv?.status ?? 'N/A',
+      };
 
-            // Cerrar el sidebar
-            if (appContext && conversation.id) {
-                window.parent.postMessage({
-                    event: 'toggleSidebar'
-                }, '*');
-            }
+      console.log('Resumen generado:', summary);
 
-            // Mostrar mensaje de éxito
-            document.getElementById('successMsg').style.display = 'block';
-            
-            setTimeout(() => {
-                document.getElementById('summaryForm').reset();
-                document.getElementById('successMsg').style.display = 'none';
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Guardar resumen';
-            }, 2000);
-        });
+      // ─── Enviar a tu backend ───────────────
+      // try {
+      //   await fetch('https://tu-api.com/api/save-summary', {
+      //     method: 'POST',
+      //     headers: { 'Content-Type': 'application/json' },
+      //     body: JSON.stringify(summary),
+      //   });
+      // } catch (err) {
+      //   console.error('Error al enviar:', err);
+      // }
+      // ───────────────────────────────────────
 
-        // Timeout para modo standalone
-        setTimeout(() => {
-            if (!appContext) {
-                log('Timeout: no se recibió contexto, modo standalone');
-                updateConversationInfo();
-            }
-        }, 3000);
+      // Mostrar éxito y resetear
+      $successMsg.style.display = 'block';
 
-        log('Listeners configurados, esperando evento onLoad...');
-    </script>
+      setTimeout(() => {
+        $form.reset();
+        $successMsg.style.display = 'none';
+        $submitBtn.disabled = false;
+        $submitBtn.textContent = 'Guardar resumen';
+      }, 2000);
+    });
+
+    // ── Arrancar ─────────────────────────────
+    ctx.init();
+  </script>
 </body>
 </html>
