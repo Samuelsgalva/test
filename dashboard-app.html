@@ -139,26 +139,132 @@
     </div>
 
     <script>
+        class ChatwootContext {
+            constructor(data) {
+                this.raw = data;
+            }
+
+            get conversationId() {
+                return this.raw?.conversation?.id;
+            }
+
+            get conversationUuid() {
+                return this.raw?.conversation?.uuid;
+            }
+
+            get status() {
+                return this.raw?.conversation?.status;
+            }
+
+            get contact() {
+                return {
+                    id: this.raw?.contact?.id,
+                    name: this.raw?.contact?.name || this.raw?.conversation?.meta?.sender?.name,
+                    email: this.raw?.contact?.email || this.raw?.conversation?.meta?.sender?.email,
+                    phone: this.raw?.contact?.phone_number || this.raw?.conversation?.meta?.sender?.phone_number,
+                    thumbnail: this.raw?.contact?.thumbnail || this.raw?.conversation?.meta?.sender?.thumbnail,
+                    customAttributes: this.raw?.contact?.custom_attributes || {}
+                };
+            }
+
+            get agent() {
+                return {
+                    id: this.raw?.currentAgent?.id,
+                    name: this.raw?.currentAgent?.name,
+                    email: this.raw?.currentAgent?.email
+                };
+            }
+
+            get team() {
+                return {
+                    id: this.raw?.conversation?.meta?.team?.id,
+                    name: this.raw?.conversation?.meta?.team?.name,
+                    description: this.raw?.conversation?.meta?.team?.description
+                };
+            }
+
+            get inbox() {
+                return {
+                    id: this.raw?.conversation?.inbox_id,
+                    channel: this.raw?.conversation?.meta?.channel
+                };
+            }
+
+            get messages() {
+                return this.raw?.conversation?.messages || [];
+            }
+
+            get lastMessage() {
+                const msgs = this.messages.filter(m => m.message_type === 0);
+                return msgs[msgs.length - 1];
+            }
+
+            get labels() {
+                return this.raw?.conversation?.labels || [];
+            }
+
+            get customAttributes() {
+                return this.raw?.conversation?.custom_attributes || {};
+            }
+
+            get unreadCount() {
+                return this.raw?.conversation?.unread_count || 0;
+            }
+
+            get createdAt() {
+                return new Date(this.raw?.conversation?.created_at * 1000);
+            }
+
+            get lastActivityAt() {
+                return new Date(this.raw?.conversation?.last_activity_at * 1000);
+            }
+
+            toJSON() {
+                return {
+                    conversationId: this.conversationId,
+                    uuid: this.conversationUuid,
+                    status: this.status,
+                    contact: this.contact,
+                    agent: this.agent,
+                    team: this.team,
+                    inbox: this.inbox,
+                    labels: this.labels,
+                    customAttributes: this.customAttributes,
+                    unreadCount: this.unreadCount,
+                    createdAt: this.createdAt,
+                    lastActivityAt: this.lastActivityAt
+                };
+            }
+        }
+
         let conversationData = null;
+        let context = null;
 
         window.addEventListener('message', (event) => {
-            console.log('Mensaje recibido:', event.data);
+            console.log('Mensaje recibido:', event);
             
-            if (event.data.event === 'appContext') {
+            if (event.data && event.data.event === 'appContext') {
+                console.log('Contexto recibido:', event.data.data);
                 conversationData = event.data.data;
+                context = new ChatwootContext(conversationData);
+                console.log('Contexto parseado:', context.toJSON());
                 displayConversationInfo();
             }
         });
 
         function displayConversationInfo() {
             const info = document.getElementById('conversationInfo');
-            if (conversationData && conversationData.conversation) {
-                const conv = conversationData.conversation;
+            if (context && context.conversationId) {
                 info.innerHTML = `
-                    <strong>Conversación:</strong> #${conv.id}<br>
-                    <strong>Cliente:</strong> ${conv.meta?.sender?.name || 'Sin nombre'}<br>
-                    <strong>Estado:</strong> ${conv.status || 'N/A'}
+                    <strong>Conversación:</strong> #${context.conversationId}<br>
+                    <strong>Cliente:</strong> ${context.contact.name || 'Sin nombre'}<br>
+                    <strong>Teléfono:</strong> ${context.contact.phone || 'N/A'}<br>
+                    <strong>Estado:</strong> ${context.status || 'N/A'}<br>
+                    <strong>Agente:</strong> ${context.agent.name || 'N/A'}
                 `;
+                info.style.background = '#d1fae5';
+                info.style.borderColor = '#6ee7b7';
+                info.style.color = '#065f46';
             } else {
                 info.innerHTML = 'App funcionando en modo standalone';
                 info.style.background = '#fef3c7';
@@ -168,7 +274,7 @@
         }
 
         setTimeout(() => {
-            if (!conversationData) {
+            if (!context) {
                 displayConversationInfo();
             }
         }, 2000);
@@ -181,18 +287,23 @@
             submitBtn.textContent = 'Guardando...';
 
             const summary = {
-                conversation_id: conversationData?.conversation?.id || 'N/A',
+                conversation_id: context?.conversationId || 'N/A',
                 resultado: document.getElementById('resultado').value,
                 categoria: document.getElementById('categoria').value,
                 resumen: document.getElementById('resumen').value,
                 notas: document.getElementById('notas').value,
                 timestamp: new Date().toISOString(),
-                agent: conversationData?.currentUser?.name || 'N/A'
+                agent: context?.agent.name || 'N/A',
+                agent_email: context?.agent.email || 'N/A',
+                cliente: context?.contact.name || 'N/A',
+                telefono: context?.contact.phone || 'N/A',
+                team: context?.team.name || 'N/A',
+                channel: context?.inbox.channel || 'N/A'
             };
 
             console.log('Resumen guardado:', summary);
 
-            if (conversationData && conversationData.conversation) {
+            if (context && context.conversationId) {
                 window.parent.postMessage({
                     event: 'toggleSidebar'
                 }, '*');
