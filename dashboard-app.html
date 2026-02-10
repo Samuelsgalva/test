@@ -141,6 +141,25 @@
 
   <!-- ② Lógica específica de ESTA dashboard app -->
   <script>
+    // Al inicio de tu script, después de recibir el contexto
+    const ALLOWED_INBOX_IDS = [2]; // Cambia estos IDs por los de tus inboxes permitidas
+
+    function checkInboxAccess() {
+        const currentInboxId = appContext?.conversation?.inbox_id;
+        
+        if (currentInboxId && !ALLOWED_INBOX_IDS.includes(currentInboxId)) {
+            document.querySelector('.container').innerHTML = `
+                <div style="padding: 20px; text-align: center;">
+                    <p style="color: #6b7280;">Esta aplicación no está disponible para esta entrada.</p>
+                </div>
+            `;
+            return false;
+        }
+        return true;
+    }
+
+    // Llamar después de updateConversationInfo()
+
     // ── Inicializar contexto de Chatwoot ─────
     const ctx = new ChatwootContext({
       debug: true,               // poner false en producción
